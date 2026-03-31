@@ -10,12 +10,6 @@ class UserModel extends Model
     protected $table      = 'users';
     protected $primaryKey = 'id';
 
-    /**
-     * Conexión directa a la base de datos.
-     * Usamos $this->db para ejecutar queries SQL crudas.
-     */
-    protected BaseConnection $db;
-
     public function __construct()
     {
         parent::__construct();
