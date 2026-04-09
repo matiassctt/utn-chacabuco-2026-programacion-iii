@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use CodeIgniter\Database\Query;
 use Config\Database;
 use CodeIgniter\Database\BaseConnection;
 
@@ -19,6 +20,26 @@ final class MovementModel {
         $this->database->query($query, [$name]);
 
         return $this->database->insertID();
+    }
+
+    public function update(string $name, int $id): void
+    {
+        $query = "UPDATE movements SET name = ? WHERE id = ?";
+        $this->database->query($query, [$name, $id]);
+    }
+
+    public function find(int $id): ?object
+    {
+        $query = "SELECT M.id, M.name FROM movements M WHERE id = ? ";
+        $result = $this->database->query($query, [$id]);
+
+        return $result->getRow();
+    }
+
+    public function delete (int $id): void
+    {
+        $query = "DELETE FROM movements WHERE id=?";
+        $this->database->query($query, [$id]);
     }
 
 }
