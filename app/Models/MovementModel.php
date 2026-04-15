@@ -36,9 +36,17 @@ final class MovementModel {
         return $result->getRow();
     }
 
-    public function delete (int $id): void
+    public function search(): array 
     {
-        $query = "DELETE FROM movements WHERE id=?";
+        $query = "SELECT M.id, M.name FROM movements M";
+        $result = $this->database->query($query);
+
+        return $result->getResult();
+    }
+
+    public function delete(int $id): void
+    {
+        $query = "DELETE FROM movements WHERE id = ?";
         $this->database->query($query, [$id]);
     }
 
