@@ -2,9 +2,11 @@
 
 namespace App\Controllers\Teacher;
 
+use App\Dto\Request\Teacher\TeacherRequest;
 use CodeIgniter\HTTP\ResponseInterface;
 use CodeIgniter\RESTful\ResourceController;
 use App\Services\Teacher\TeacherCreatorService;
+use DateTime;
 
 class TeacherPostController extends ResourceController {
 
@@ -16,18 +18,24 @@ class TeacherPostController extends ResourceController {
 
     public function create(): ResponseInterface 
     {
+        $teacherRequest = $this->getRequest();
+
+        $teacherResponse = $this->teacherCreatorService->create($teacherRequest);
+
+        return $this->response->setJSON($teacherResponse);   
+    }
+
+    private function getRequest(): TeacherRequest
+    {
         $parameters = $this->request->getJson();
 
-        $name = $parameters->name;
-        $surname = $parameters->surname;
-        $email = $parameters->email;
-        $dni = $parameters->dni;
-
-        $id = $this->teacherCreatorService->create($name, $surname, $email, $dni);
-
-        return $this->response->setJSON([
-            "id" => $id
-        ]);   
+        return new TeacherRequest(
+            $parameters->name,
+            $parameters->surname,
+            $parameters->email,
+            $parameters->dni,
+            new DateTime($parameters->birthdate)
+        );
     }
 
 }

@@ -2,6 +2,7 @@
 
 namespace App\Services\Teacher;
 
+use App\Entity\Teacher\Teacher;
 use App\Models\TeacherModel;
 use App\Exception\Teacher\TeacherNotFoundException;
 
@@ -13,7 +14,7 @@ final class TeacherFinderService {
         $this->teacherModel = new TeacherModel();
     }
 
-    public function find(int $id): object 
+    public function find(int $id): Teacher 
     {
         $teacher = $this->teacherModel->find($id);
 

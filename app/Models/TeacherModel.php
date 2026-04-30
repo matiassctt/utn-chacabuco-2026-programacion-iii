@@ -2,37 +2,75 @@
 
 namespace App\Models;
 
+use App\Converter\Teacher\PrimitiveToTeacherConverter;
+use App\Entity\Teacher\Teacher;
 use Config\Database;
 use CodeIgniter\Database\BaseConnection;
 
 final class TeacherModel {
 
     private BaseConnection $database;
+    private PrimitiveToTeacherConverter $converter;
 
     public function __construct() {
         $this->database = Database::connect();
+        $this->converter = new PrimitiveToTeacherConverter();
     }
 
-    public function insert(string $name, string $surname, string $email, int $dni): int
+    public function insert(Teacher $teacher): Teacher
     {
-        $query = "INSERT INTO teachers (name, surname, email, dni) VALUES (?, ?, ?, ?) ";
-        $this->database->query($query, [$name, $surname, $email, $dni]);
+        $query = "INSERT INTO teachers (name, surname, email, dni, birth_date) VALUES (?, ?, ?, ?, ?) ";
 
-        return $this->database->insertID();
+        $this->database->query($query, [
+            $teacher->getName(), 
+            $teacher->getSurname(), 
+            $teacher->getEmail(), 
+            $teacher->getDni(),
+            $teacher->getBirthDate()->format("Y-m-d")
+        ]);
+
+        $id = $this->database->insertID();
+
+        return new Teacher(
+            $id,
+            $teacher->getName(),
+            $teacher->getSurname(),
+            $teacher->getEmail(),
+            $teacher->getDni(),
+            $teacher->getBirthDate()
+        );
     }
 
-    public function update(string $name, string $surname, string $email, int $dni, int $id): void
+    public function update(Teacher $teacher): Teacher
     {
-        $query = "UPDATE teachers SET name = ?, surname = ?, email = ?, dni = ? WHERE id = ?";
-        $this->database->query($query, [$name, $surname, $email, $dni, $id]);
+        $query = "UPDATE teachers SET name = ?, surname = ?, email = ?, dni = ?, birth_date = ? WHERE id = ?";
+
+        $this->database->query($query, [
+            $teacher->getName(), 
+            $teacher->getSurname(), 
+            $teacher->getEmail(), 
+            $teacher->getDni(),
+            $teacher->getBirthDate()->format("Y-m-d"), 
+            $teacher->getId()
+        ]);
+
+        return $teacher;
     }
 
-    public function find(int $id): ?object
+    public function find(int $id): ?Teacher
     {
-        $query = "SELECT T.id, T.name, T.surname, T.email, T.dni FROM teachers T WHERE T.id = ? ";
+        $query = "SELECT T.id, T.name, T.surname, T.email, T.dni, T.birth_date FROM teachers T WHERE T.id = ? ";
         $result = $this->database->query($query, [$id]);
 
-        return $result->getRow();
+        $primitive = $result->getRow();
+
+        if (is_null($primitive)) {
+            return null;
+        }
+
+        $teacher = $this->converter->convert($primitive);
+
+        return $teacher;
     }
 
     public function search(): array 
