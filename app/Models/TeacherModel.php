@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Converter\Teacher\PrimitiveToTeacherConverter;
+use App\Dto\Request\Teacher\TeacherFilterRequest;
 use App\Entity\Teacher\Teacher;
 use Config\Database;
 use CodeIgniter\Database\BaseConnection;
@@ -73,12 +74,49 @@ final class TeacherModel {
         return $teacher;
     }
 
-    public function search(): array 
+    /**
+     * @return Teacher[]
+     */
+    public function search(TeacherFilterRequest $request): array 
     {
-        $query = "SELECT T.id, T.name, T.surname, T.email, T.dni FROM teachers T";
-        $result = $this->database->query($query);
+        // 1) Elementos que traigo
 
-        return $result->getResult();
+        $parameters = [];
+
+        $selectQuery = "SELECT T.id, T.name, T.surname, T.email, T.dni, T.birth_date ";
+
+        // 2) De donde traigo esos elementos + los filtros que hago
+
+        $fromQuery = "FROM teachers T ";
+        $whereQuery = "WHERE 1 = 1 ";
+        if ($request->hasEmail()) {
+            $whereQuery.= " AND T.email LIKE ? ";
+            $email = $request->getEmail();
+            $parameters[] = "%$email%";
+        }
+
+        // 3) El orden que hago
+
+        $orderQuery = "ORDER BY T.id ASC ";
+
+        // 4) El paginado que hago
+
+        $paginationQuery = "LIMIT ?, ? ";
+        $parameters[] = $request->getPagination()->getLimit();
+        $parameters[] = $request->getPagination()->getOffset();
+
+        $fullQuery = $selectQuery.$fromQuery.$whereQuery.$orderQuery.$paginationQuery;
+
+        $result = $this->database->query($fullQuery, $parameters);
+
+        $primitives = $result->getResult();
+
+        $entities = [];
+        foreach ($primitives as $primitive) {
+            $entities[] = $this->converter->convert($primitive);
+        }
+
+        return $entities;
     }
 
     public function delete(int $id): void

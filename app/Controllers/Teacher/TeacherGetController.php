@@ -15,7 +15,7 @@ class TeacherGetController extends ResourceController {
 
     public function find(int $id): ResponseInterface 
     {
-        $teacher = $this->teacherFinderService->find($id);
+        $teacher = $this->teacherFinderService->findResponse($id);
         return $this->response->setJSON($teacher);
     }
 }

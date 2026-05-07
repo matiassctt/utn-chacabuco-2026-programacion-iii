@@ -14,8 +14,10 @@ final class TeacherDeleterService {
         $this->teacherFinderService = new TeacherFinderService();
     }
 
-    public function delete (int $id): void {
+    public function delete(int $id): void 
+    {
         $teacher = $this->teacherFinderService->find($id);
-        $this->teacherModel->delete($teacher->id);
+
+        $this->teacherModel->delete($teacher->getId());
     } 
 }
