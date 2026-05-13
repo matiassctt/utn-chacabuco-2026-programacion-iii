@@ -1,300 +1,116 @@
-<?php
+<?php 
 
 namespace App\Models;
 
+use App\Converter\User\PrimitiveToUserConverter;
+use App\Dto\Request\User\UserFilterRequest;
+use App\Entity\User\User;
+use Config\Database;
 use CodeIgniter\Database\BaseConnection;
-use CodeIgniter\Model;
 
-class UserModel extends Model
-{
-    protected $table      = 'users';
-    protected $primaryKey = 'id';
+final class UserModel {
 
-    public function __construct()
-    {
-        parent::__construct();
-        $this->db = \Config\Database::connect();
+    private BaseConnection $database;
+    private PrimitiveToUserConverter $converter;
+
+    public function __construct() {
+        $this->database = Database::connect();
+        $this->converter = new PrimitiveToUserConverter();
     }
 
-    // =========================================================================
-    // GET /users  →  Todos los usuarios paginados
-    // =========================================================================
-
-    /**
-     * Retorna todos los usuarios activos (sin soft-deleted), con paginación.
-     *
-     * SQL:
-     *   SELECT id, name, email, role, active, created_at, updated_at
-     *   FROM users
-     *   WHERE deleted_at IS NULL
-     *   ORDER BY id ASC
-     *   LIMIT :limit OFFSET :offset
-     */
-    public function getAll(int $page = 1, int $perPage = 10): array
+    public function insert(User $user): User
     {
-        $offset = ($page - 1) * $perPage;
+        $query = "INSERT INTO users (username, email, password, dni) VALUES (?, ?, ?, ?) ";
 
-        // ── Query principal con paginación ───────────────────────────────────
-        $query = $this->db->query(
-            'SELECT id, name, email, role, active, created_at, updated_at
-             FROM users
-             WHERE deleted_at IS NULL
-             ORDER BY id ASC
-             LIMIT ? OFFSET ?',
-            [$perPage, $offset]
-        );
+        $this->database->query($query, [
+            $user->getUserName(), 
+            $user->getEmail(), 
+            $user->getPassword(), 
+            $user->getDni()
+        ]);
 
-        // ── Query para el total de registros ─────────────────────────────────
-        $totalQuery = $this->db->query(
-            'SELECT COUNT(*) AS total
-             FROM users
-             WHERE deleted_at IS NULL'
-        );
+        $id = $this->database->insertID();
 
-        $total     = (int) $totalQuery->getRow()->total;
-        $lastPage  = (int) ceil($total / $perPage);
-
-        return [
-            'data'  => $query->getResultArray(),
-            'pager' => [
-                'total'    => $total,
-                'per_page' => $perPage,
-                'page'     => $page,
-                'lastPage' => $lastPage,
-            ],
-        ];
-    }
-
-    // =========================================================================
-    // GET /users/{id}  →  Un usuario por ID
-    // =========================================================================
-
-    /**
-     * Busca un usuario por su ID (excluye soft-deleted).
-     *
-     * SQL:
-     *   SELECT id, name, email, role, active, created_at, updated_at
-     *   FROM users
-     *   WHERE id = :id AND deleted_at IS NULL
-     *   LIMIT 1
-     */
-    public function getById(int $id): ?array
-    {
-        $query = $this->db->query(
-            'SELECT id, name, email, role, active, created_at, updated_at
-             FROM users
-             WHERE id = ? AND deleted_at IS NULL
-             LIMIT 1',
-            [$id]
-        );
-
-        $result = $query->getRowArray();
-
-        return $result ?: null;
-    }
-
-    // =========================================================================
-    // POST /users  →  Crear usuario
-    // =========================================================================
-
-    /**
-     * Inserta un nuevo usuario en la base de datos.
-     *
-     * SQL:
-     *   INSERT INTO users (name, email, password, role, active, created_at, updated_at)
-     *   VALUES (?, ?, ?, ?, ?, NOW(), NOW())
-     */
-    public function createUser(array $data): int|false
-    {
-        // Validar email duplicado antes de insertar
-        if ($this->emailExists($data['email'])) {
-            $this->setValidationError('email', 'El email ya está registrado.');
-            return false;
-        }
-
-        $password = password_hash($data['password'], PASSWORD_BCRYPT);
-        $role     = $data['role']   ?? 'user';
-        $active   = $data['active'] ?? 1;
-
-        $result = $this->db->query(
-            'INSERT INTO users (name, email, password, role, active, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, NOW(), NOW())',
-            [
-                $data['name'],
-                $data['email'],
-                $password,
-                $role,
-                $active,
-            ]
-        );
-
-        if (! $result) {
-            return false;
-        }
-
-        return $this->db->insertID();
-    }
-
-    // =========================================================================
-    // PUT /users/{id}  →  Actualizar usuario
-    // =========================================================================
-
-    /**
-     * Actualiza los datos de un usuario existente.
-     * Solo actualiza los campos que vengan en $data.
-     *
-     * SQL base:
-     *   UPDATE users
-     *   SET name = ?, email = ?, role = ?, active = ?, updated_at = NOW()
-     *   WHERE id = ? AND deleted_at IS NULL
-     *
-     * Si viene password:
-     *   UPDATE users
-     *   SET name = ?, email = ?, password = ?, role = ?, active = ?, updated_at = NOW()
-     *   WHERE id = ? AND deleted_at IS NULL
-     */
-    public function updateUser(int $id, array $data): bool
-    {
-        // Validar email duplicado en otro usuario
-        if (
-            isset($data['email']) &&
-            $this->emailExistsForOther($data['email'], $id)
-        ) {
-            $this->setValidationError('email', 'El email ya está en uso por otro usuario.');
-            return false;
-        }
-
-        // Construir SET dinámicamente según los campos recibidos
-        $fields = [];
-        $params = [];
-
-        if (isset($data['name'])) {
-            $fields[] = 'name = ?';
-            $params[] = $data['name'];
-        }
-
-        if (isset($data['email'])) {
-            $fields[] = 'email = ?';
-            $params[] = $data['email'];
-        }
-
-        if (! empty($data['password'])) {
-            $fields[] = 'password = ?';
-            $params[] = password_hash($data['password'], PASSWORD_BCRYPT);
-        }
-
-        if (isset($data['role'])) {
-            $fields[] = 'role = ?';
-            $params[] = $data['role'];
-        }
-
-        if (isset($data['active'])) {
-            $fields[] = 'active = ?';
-            $params[] = (int) $data['active'];
-        }
-
-        if (empty($fields)) {
-            return false;
-        }
-
-        $fields[]  = 'updated_at = NOW()';
-        $params[]  = $id;
-
-        $sql = 'UPDATE users SET ' . implode(', ', $fields) . ' WHERE id = ? AND deleted_at IS NULL';
-
-        return $this->db->query($sql, $params);
-    }
-
-    // =========================================================================
-    // DELETE /users/{id}  →  Soft-delete
-    // =========================================================================
-
-    /**
-     * Marca el usuario como eliminado (soft-delete).
-     *
-     * SQL:
-     *   UPDATE users
-     *   SET deleted_at = NOW(), updated_at = NOW()
-     *   WHERE id = ? AND deleted_at IS NULL
-     */
-    public function deleteUser(int $id): bool
-    {
-        return $this->db->query(
-            'UPDATE users
-             SET deleted_at = NOW(), updated_at = NOW()
-             WHERE id = ? AND deleted_at IS NULL',
-            [$id]
+        return new User(
+            $id,
+            $user->getUserName(), 
+            $user->getEmail(), 
+            $user->getPassword(), 
+            $user->getDni()
         );
     }
 
-    // =========================================================================
-    // Métodos auxiliares
-    // =========================================================================
-
-    /**
-     * Busca un usuario por email (útil para login).
-     *
-     * SQL:
-     *   SELECT * FROM users
-     *   WHERE email = ? AND active = 1 AND deleted_at IS NULL
-     *   LIMIT 1
-     */
-    public function findByEmail(string $email): ?array
+    public function update(User $user): User
     {
-        $query = $this->db->query(
-            'SELECT *
-             FROM users
-             WHERE email = ? AND active = 1 AND deleted_at IS NULL
-             LIMIT 1',
-            [$email]
-        );
+        $query = "UPDATE users SET username = ?, email = ?, password = ?, dni = ? WHERE id = ?";
 
-        $result = $query->getRowArray();
+        $this->database->query($query, [
+            $user->getUserName(), 
+            $user->getEmail(), 
+            $user->getPassword(), 
+            $user->getDni(), 
+            $user->getId()
+        ]);
 
-        return $result ?: null;
+        return $user;
+    }
+
+    public function find(int $id): ?User
+    {
+        $query = "SELECT U.id, U.username, U.email, U.password, U.dni FROM users U WHERE U.id = ? ";
+        $result = $this->database->query($query, [$id]);
+
+        $primitive = $result->getRow();
+
+        if (is_null($primitive)) {
+            return null;
+        }
+
+        $user = $this->converter->convert($primitive);
+
+        return $user;
     }
 
     /**
-     * Verifica si un email ya existe en la tabla.
-     *
-     * SQL:
-     *   SELECT COUNT(*) AS total FROM users WHERE email = ? AND deleted_at IS NULL
+     * @return User[]
      */
-    private function emailExists(string $email): bool
+    public function search(UserFilterRequest $request): array 
     {
-        $query = $this->db->query(
-            'SELECT COUNT(*) AS total
-             FROM users
-             WHERE email = ? AND deleted_at IS NULL',
-            [$email]
-        );
+        $parameters = [];
 
-        return (int) $query->getRow()->total > 0;
+        $selectQuery = "SELECT U.id, U.username, U.email, U.password, U.dni ";
+
+        $fromQuery = "FROM users U ";
+        $whereQuery = "WHERE 1 = 1 ";
+        if ($request->hasEmail()) {
+            $whereQuery.= " AND U.email LIKE ? ";
+            $email = $request->getEmail();
+            $parameters[] = "%$email%";
+        }
+
+        $orderQuery = "ORDER BY U.id ASC ";
+
+        $paginationQuery = "LIMIT ?, ? ";
+        $parameters[] = $request->getPagination()->getLimit();
+        $parameters[] = $request->getPagination()->getOffset();
+
+        $fullQuery = $selectQuery.$fromQuery.$whereQuery.$orderQuery.$paginationQuery;
+
+        $result = $this->database->query($fullQuery, $parameters);
+
+        $primitives = $result->getResult();
+
+        $entities = [];
+        foreach ($primitives as $primitive) {
+            $entities[] = $this->converter->convert($primitive);
+        }
+
+        return $entities;
     }
 
-    /**
-     * Verifica si un email ya existe pero pertenece a otro usuario (para UPDATE).
-     *
-     * SQL:
-     *   SELECT COUNT(*) AS total FROM users WHERE email = ? AND id != ? AND deleted_at IS NULL
-     */
-    private function emailExistsForOther(string $email, int $excludeId): bool
+    public function delete(int $id): void
     {
-        $query = $this->db->query(
-            'SELECT COUNT(*) AS total
-             FROM users
-             WHERE email = ? AND id != ? AND deleted_at IS NULL',
-            [$email, $excludeId]
-        );
-
-        return (int) $query->getRow()->total > 0;
-    }
-
-    /**
-     * Helper para setear errores de validación manualmente.
-     */
-    private function setValidationError(string $field, string $message): void
-    {
-        $this->validation->setError($field, $message);
+        $query = "DELETE FROM users WHERE id = ?";
+        $this->database->query($query, [$id]);
     }
 }

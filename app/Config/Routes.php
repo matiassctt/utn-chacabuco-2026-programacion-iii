@@ -7,12 +7,6 @@ use CodeIgniter\Router\RouteCollection;
  */
 $routes->get('/', 'Home::index');
 
-$routes->get('users', 'User\IndexController::index');
-$routes->get('users/(:num)', 'User\ShowController::show/$1');
-$routes->post('users', 'User\CreateController::create');
-$routes->put('users/(:num)', 'User\UpdateController::update/$1');
-$routes->delete('users/(:num)', 'User\DeleteController::delete/$1');
-
 $routes->get('movements', 'Movement\MovementsGetController::search');
 $routes->get('movements/(:num)', 'Movement\MovementGetController::find/$1');
 $routes->post('movements', 'Movement\MovementPostController::create');
@@ -24,3 +18,9 @@ $routes->get('teachers/(:num)', 'Teacher\TeacherGetController::find/$1');
 $routes->post('teachers', 'Teacher\TeacherPostController::create');
 $routes->put('teachers/(:num)', 'Teacher\TeacherPutController::put/$1');
 $routes->delete('teachers/(:num)', 'Teacher\TeacherDeleteController::do/$1');
+
+$routes->get('users', 'User\UsersGetController::search');
+$routes->get('users/(:num)', 'User\UserGetController::find/$1');
+$routes->post('users', 'User\UserPostController::create');
+$routes->put('users/(:num)', 'User\UserPutController::put/$1');
+$routes->delete('users/(:num)', 'User\UserDeleteController::do/$1');
